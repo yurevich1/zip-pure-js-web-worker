@@ -1,0 +1,207 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<script type="text/javascript" src="archive.lib.min.js"></script>
+<script type="text/javascript" src="zip.js"></script>
+<body>
+<button id="zipme">zip me!</button>
+<button id="unzipme" disabled="disabled">unzip me!</button>
+<br/>
+<br/>
+<button id="zipmemui">zip me! Main Thread</button>
+<button id="unzipmemui" disabled="disabled">unzip me! Main Thread</button>
+<p id="value">To start test process, please, press "zip me!" or "zip me! Main Thread" buttons.</p>
+<p>Usage:</p>
+<ul>
+<li>"zip me!" button generates a random string and converts into ZIP archived data.</li>
+<li>"unzip me!" button decompresses created ZIP archived string into data array.</li>
+<li>"zip me! Main Thread!" &apm; "unzip me! Main Thread" shows the work inside main thread. Be careful! This code completely blocks UI!</li>
+<li>Please, open console (F12) in order to view compressed and decompressed data</li>
+</ul>
+<a href="https://blog.slava.online" target="_blank">https://blog.slava.online</a>
+<br/>
+<a href="https://blog.slava.online/tar-xz-zip-archiver-webworker-for-browser-pure-js/" target="_blank">Description: https://blog.slava.online/tar-xz-zip-archiver-webworker-for-browser-pure-js/</a>
+<br/>
+<a href="https://blog.slava.online/archive/tar-xz-zip" target="_blank">Free online convertor</a>
+<br/>
+<a href="https://blog.slava.online/shareddir/zip/zip.zip" target="_blank">Download this example</a>
+
+<script>
+	var makeid = function(max_){
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for( var i=0; i < max_; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+    return text;
+	}, str2ab = function(str) {//ascii string to Uint8Array
+	var arr=[];
+	for(var i=0,j=str.length;i<j;++i){
+		arr.push(str.charCodeAt(i));
+	}
+	return new Uint8Array(arr);
+	}, Uint8ToString = function (u8a){
+		if (u8a == null) return "null";
+		var CHUNK_SZ = 0x8000;
+		var c = [];
+		for (var i=0; i < u8a.length; i+=CHUNK_SZ) {
+			c.push(String.fromCharCode.apply(null, u8a.subarray(i, i+CHUNK_SZ)));
+		}
+		return c.join("");
+	},
+	value = document.getElementById('value'),
+	zipme = document.getElementById('zipme'),
+	unzipme = document.getElementById('unzipme'),
+	zipmemui = document.getElementById('zipmemui'),
+	unzipmemui = document.getElementById('unzipmemui'),
+	workerZIP,
+	tmp,
+	t0 = (new Date).getTime(), t1 = t0,
+	kbl = 1024,
+	enableBtns = function() {
+		unzipme.removeAttribute('disabled');
+		unzipmemui.removeAttribute('disabled');
+	},
+	val = function(str) {
+		value.innerHTML = str;
+	};
+	//into ZIP
+	zipme.onclick = function(){
+		val('generates String '  + kbl + ' *1024 length');
+		t0 = (new Date).getTime()
+		if(typeof(workerZIP) == "undefined") {
+			workerZIP = new Worker('worker.zip.wrapper.js');
+			workerZIP.onerror = function(e) {
+				val(e + '');
+				console.log("workerZIP error: ", e);
+				workerZIP = undefined;
+			}
+			var str_to_compress = makeid(kbl * 1024);
+			var ss = str2ab(str_to_compress);
+			var $ar = [new DataStorageInput('/',makeid(5) + "." + makeid(3),false,(ss))];
+			workerZIP.onmessage = function(event) {//1
+				if (event.data.type === 1){
+					val('1:' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%');
+				} else if (event.data.type == 2){
+					val('2:' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%');
+				} else if (event.data.type == 3){
+					t1 = (new Date).getTime();
+					tmp = event.data.results;
+					val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' + 'compressed from ' + (kbl * 1024) + ' into ' + tmp.length + ';  look at console (F12) to look at Uint8Array; the data is stored in \'tmp\' variable too.');
+					enableBtns();
+					console.log(tmp);
+					workerZIP.terminate();//this is very important!!! You have to release memory!
+					workerZIP = undefined;
+				}
+			}
+			
+			t0 = (new Date).getTime();
+			val('zip');
+			var level = 9;//Feel free to use any value 0-9
+			workerZIP.postMessage({
+				id:1,
+				action:'compress',
+				level: level,
+				FilesDataArray: $ar
+			});
+		} else {
+			//stop if press again
+			workerZIP.terminate();
+			workerZIP = undefined;
+			console.log('workerZIP Stopped');
+		}
+	};
+	
+	//unZIP
+	unzipme.onclick = function(){
+		if (typeof(tmp) == "undefined" || tmp == null) {
+			//remove this if-else in your code. this is just for this example
+		} else {
+			val('unzipme');
+			if(typeof(workerZIP) == "undefined") {
+				workerZIP = new Worker('worker.zip.wrapper.js');
+				var Uints = tmp;// for xhr use this: new Uint8Array(this.response);
+				var $ar = [Uints];
+				workerZIP.onerror = function(e) {
+					val(e + '');
+					console.log("workerZIP error: ", e);
+					workerZIP = undefined;
+				}
+				workerZIP.onmessage = function(event) {//1
+					if (event.data.type === 1){
+						val('1:' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%');
+					} else if (event.data.type == 2){
+						val('2:' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%');
+					} else if (event.data.type == 3){
+						t1 = (new Date).getTime();
+						val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' + 'decompressed from ' + tmp.length + ' into ' + (kbl * 1024) + '; look at console (F12) to find string.');
+						// event.data.results: data in Uint8Array 
+						console.log(event.data.results);
+					//	var str = Uint8ToString(event.data.results);
+					//	console.log(str);
+						workerZIP.terminate();//this is very important!!! You have to release memory!
+						workerZIP = undefined;
+					}
+				}
+				t0 = (new Date).getTime();
+				val('unzip');
+				workerZIP.postMessage({
+					id:1,
+					action:'decompress',
+					FilesDataArray: $ar
+				});
+			} else {
+				//stop if press again
+				workerZIP.terminate();
+				workerZIP = undefined;
+				console.log('workerZIP Stopped');
+			}
+		}
+	};
+	//into ZIP. Main Thread
+	zipmemui.onclick = function() {
+		val("Please, wait until all calculations are done. UI is blocked.");
+		setTimeout(function(){
+		//you can remove setTimeout wrapper. This function is used due to show the message above.
+			var str_to_compress = makeid(kbl * 1024);
+			var ss = str2ab(str_to_compress);
+			var $ar = [new DataStorageInput('/',makeid(5) + "." + makeid(3),false,(ss))];
+			t0 = (new Date).getTime();
+			var extreme = 0;
+			var res_zip = _ZIP($ar,0,0,0,
+				function(cur, max_) {  
+				//	console.log([cur, max_]);
+				}, function(cur, max_) {  
+				//	console.log([cur, max_]);
+				});
+			t1 = (new Date).getTime();
+			console.log(res_zip);
+			tmp = res_zip;
+			enableBtns();
+			val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' +  'compressed from ' + (kbl * 1024) + ' into ' + tmp.length + ';  look at console (F12) to look at Uint8Array; the data is stored in \'tmp\' variable too.');
+		},5);
+	};
+	//unZIP. Main Thread
+	unzipmemui.onclick = function() {
+		if (typeof(tmp) == "undefined" || tmp == null) {
+			//remove this if-else in your code. this is just for this example
+		} else {
+			val("Please, wait until all calculations are done. UI is blocked.");
+			setTimeout(function(){
+			//you can remove setTimeout wrapper. This function is used due to show the message above.
+				t0 = (new Date).getTime();
+				var res = _ZIP(tmp,1,0,0, function(cur, max_) {  
+				//	console.log([cur, max_]);
+				}, function(cur, max_) {  
+				//	console.log([cur, max_]);
+				});
+				t1 = (new Date).getTime();
+				console.log(res); 
+				val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' +  'decompressed from ' + tmp.length + ' into ' + (kbl * 1024) + '; look at console (F12) to find string.');
+			},5);
+		}
+	};
+</script>
+</body>
+</html>
