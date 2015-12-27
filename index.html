@@ -1,3 +1,4 @@
+
 <html>
 <head>
 <meta charset="UTF-8">
@@ -27,6 +28,7 @@
 <a href="https://blog.slava.online/shareddir/zip/zip.zip" target="_blank">Download this example</a>
 
 <script>
+	var totalMemory = 268435456;
 	var makeid = function(max_){
     var text = "";
     var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -103,7 +105,8 @@
 				id:1,
 				action:'compress',
 				level: level,
-				FilesDataArray: $ar
+				FilesDataArray: $ar,
+				totalMemory: totalMemory
 			});
 		} else {
 			//stop if press again
@@ -149,7 +152,8 @@
 				workerZIP.postMessage({
 					id:1,
 					action:'decompress',
-					FilesDataArray: $ar
+					FilesDataArray: $ar,
+					totalMemory: totalMemory
 				});
 			} else {
 				//stop if press again
@@ -169,7 +173,7 @@
 			var $ar = [new DataStorageInput('/',makeid(5) + "." + makeid(3),false,(ss))];
 			t0 = (new Date).getTime();
 			var extreme = 0;
-			var res_zip = _ZIP($ar,0,0,0,
+			var res_zip = _ZIP($ar,0,0,0,totalMemory,
 				function(cur, max_) {  
 				//	console.log([cur, max_]);
 				}, function(cur, max_) {  
@@ -191,7 +195,7 @@
 			setTimeout(function(){
 			//you can remove setTimeout wrapper. This function is used due to show the message above.
 				t0 = (new Date).getTime();
-				var res = _ZIP(tmp,1,0,0, function(cur, max_) {  
+				var res = _ZIP(tmp,1,0,0,totalMemory, function(cur, max_) {  
 				//	console.log([cur, max_]);
 				}, function(cur, max_) {  
 				//	console.log([cur, max_]);
